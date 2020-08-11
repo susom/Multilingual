@@ -17,6 +17,7 @@
 	var translations = {};
 	var errorChecking = 0;
 	var anyTranslated = false;
+	var matrixProcessed = {};
 
 	//document ready change language
 	$( document ).ready(function(){
@@ -62,7 +63,7 @@
 					$('#redcapValidationErrorPopup').html('');
 					setTimeout(function(){
 						id = id.replace('-tr', '');
-						if(translations['errors'][id] && translations['errors'][id]['text'] != ''){
+						if(translations['errors'] && translations['errors'][id] && translations['errors'][id]['text'] != ''){
 							$('#redcapValidationErrorPopup').html(translations['errors'][id]['text']);
 						}
 						else{
@@ -130,6 +131,18 @@
 			var id;
 			for(id in translations['questions']){
 				if(translations['questions'][id]['matrix'] != null){
+					if(!(translations['questions'][id]['matrix'] in matrixProcessed) && settings['hide-matrix-questions-without-translation'] && settings['hide-matrix-questions-without-translation']['value']) {
+						$('tr[mtxgrp="'+translations['questions'][id]['matrix']+'"].mtxfld').each(function(){
+							var curMtxQuestionId = $(this).attr('id');
+							curMtxQuestionId = curMtxQuestionId.replace('-tr', '');
+							if(typeof translations['questions'][curMtxQuestionId] == 'undefined') {
+								$(this).hide();
+							} else {
+								$(this).show();
+							}
+						});
+						matrixProcessed[translations['questions'][id]['matrix']] = true;
+					}
 					$('#' + id + '-tr').children().children().children().children().children().children().children().children().children().children('td:first').html(translations['questions'][id]['text']);
 				}
 				else if(translations['questions'][id]['type'] == 'descriptive'){
@@ -139,6 +152,7 @@
 				}
 				else{
 					$('#' + id + '-tr').children().children().children().children().children().children('td:first').html(translations['questions'][id]['text']);
+					//$('#label-' + id).html(translations['questions'][id]['text']);
 				}
 			}
 
@@ -148,8 +162,12 @@
 					var id2;
 					for(id2 in translations['answers'][id]['text']){
 						$('[name="' + id + '"] option').each(function(){
+							$(this).show();
 							if($(this).val() == id2){
 								$(this).text(translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation'] && settings['hide-answers-without-translation']['value'] && $(this).val() !== '' && $(this).data('lang') !== lang) {
+								$(this).hide();
 							}
 						});
 					}
@@ -176,9 +194,14 @@
 					var id2;
 					for(id2 in translations['answers'][id]['text']){
 						$('[name="' + id + '___radio"]').each(function(){
+							$(this).parent().contents().last().show();
+							$(this).show();
 							if($(this).val() == id2){
-								//$(this).parent().contents().last().replaceWith(' ' + translations['answers'][id]['text'][id2]);
 								$(this).parent().contents().last().html(' ' + translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation'] && settings['hide-answers-without-translation']['value'] && $(this).data('lang') !== lang) {
+								$(this).parent().contents().last().hide();
+								$(this).hide();
 							}
 						});
 					}
@@ -186,9 +209,14 @@
 				else if(translations['answers'][id]['type'] == 'checkbox'){
 					var id2;
 					for(id2 in translations['answers'][id]['text']){
-						$('[name="__chk__' + id + '_RC_' + id2 + '"]').each(function(){
-							//$(this).parent().contents().last().replaceWith(' ' + translations['answers'][id]['text'][id2]);
-							$(this).parent().contents().last().html(' ' + translations['answers'][id]['text'][id2]);
+						$('#'+id+'-tr .choicevert').each(function(){
+							$(this).show();
+							if($(this).find('[name="__chk__' + id + '_RC_' + id2 + '"]').length) {
+								$(this).contents().last().html(' ' + translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation'] && settings['hide-answers-without-translation']['value'] && $(this).data('lang') !== lang) {
+								$(this).hide();
+							}
 						});
 					}
 				}
@@ -260,6 +288,15 @@
 		data['record_id'] = $('[name="' + table_pk + '"]').val();
 		data['event_id'] = event_id;
 		data['page'] = (page ? page : $('#surveytitle').html().replace(/ /g,'_').toLowerCase());
+		
+		var t;
+		for(t in languages){
+			if(languages[t] == lang){
+				data['lang_id'] = t;
+				break;
+			}
+		}
+		
 		var json = encodeURIComponent(JSON.stringify(data));
 
 		$.ajax({
@@ -275,6 +312,7 @@
 					translations = r;
 					langReady = 1;
 					anyTranslated = true;
+					matrixProcessed = {};
 				}
 			},
 			error: function(jqXHR, textStatus, errorThrown) {

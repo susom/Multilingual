@@ -1,7 +1,12 @@
-(function(){
+var Multilingual = (function(){
 	//load languages
+	var pdf_url = 'REDCAP_PDF_URL';
 	var ajax_url = 'REDCAP_AJAX_URL';
 	var langVar = 'REDCAP_LANGUAGE_VARIABLE';
+	var instrument_name = 'REDCAP_INSTRUMENT_NAME';
+	
+	//get language choice from url
+	getURLLanguage();
 	
 	var project_id = getVariable('pid');
 	//var languages = {1: 'en', 2: 'es', 3: 'fr'};
@@ -16,7 +21,11 @@
 	var translations = {};
 	var errorChecking = 0;
 	var anyTranslated = false;
-
+	var matrixProcessed = {};
+	var settingsRetrieved = false;
+	var languagesRetrieved = false;
+	var form_settings = null;
+	
 	//document ready change language
 	$( document ).ready(function(){
 		setNormalCookie('p1000pid', pid, .04);
@@ -28,11 +37,12 @@
 
 		//link to change
 		$('#surveytitle').parent().append(' <div id="changeLang" style="display:none;">' + lang + '</div>');
-
+		
 		//click function
 		$('body').on('click', '.setLangButtons', function(){
 			var tmp = $(this).attr('name');
 			getLanguage(tmp);
+			loadFormSettings();
 		});
 
 		$('body').on('click', '#changeLang', function(){
@@ -66,62 +76,68 @@
 						id = 1;
 					}
 					getLanguage(languages[id]);
+					loadFormSettings();
 				}
 			}
 		});
 
 		//signature and file upload dialogs
 		$('body').on('click', '.fileuploadlink', function(){
-			var id = $(this).parent().parent().parent().attr('id').replace('-tr','');
+			
+			if (form_settings) {
+				
+			} else {
+				var id = $(this).parent().parent().parent().attr('id').replace('-tr','');
 
-			setTimeout(function(){
-				$('#field_name_popup').html('<b>' + translations['questions'][id]['text'] + '</b>');
-				$('#signature-div-actions').children('button').html('&#x2714;');
-				$('#f1_upload_form').children().first().html('');
-				$('#f1_upload_form').children('input').val("✔");
-				$('.ui-dialog-title').each(function(){
-					if($(this).is(':visible')){
-						$(this).html('<span style="font-size:25px;font-weight:bold;">+</span>');
+				setTimeout(function(){
+					$('#field_name_popup').html('<b>' + translations['questions'][id]['text'] + '</b>');
+					$('#signature-div-actions').children('button').html('&#x2714;');
+					$('#f1_upload_form').children().first().html('');
+					$('#f1_upload_form').children('input').val("✔");
+					$('.ui-dialog-title').each(function(){
+						if($(this).is(':visible')){
+							$(this).html('<span style="font-size:25px;font-weight:bold;">+</span>');
+						}
+					});
+
+					if(translations['answers'][id]['type'] == 'signature'){
+						//signature error messages
+						$('body').on('click', 'button', function a1(){
+							$('body').off('click', 'button', a1);
+							setTimeout(function(){
+								$('.ui-dialog-title').each(function(){
+									if($(this).is(':visible') && $(this).html() == 'ERROR'){
+										$(this).html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
+										if(translations['errors'][id]['text']){
+											$(this).parent().next().html(translations['errors'][id]['text']);
+										}
+										$(this).parent().next().next().children().children().html("✔");
+										return;
+									}
+								});
+							}, 10);
+						});
 					}
-				});
-
-				if(translations['answers'][id]['type'] == 'signature'){
-					//signature error messages
-					$('body').on('click', 'button', function a1(){
-						$('body').off('click', 'button', a1);
-						setTimeout(function(){
-							$('.ui-dialog-title').each(function(){
-								if($(this).is(':visible') && $(this).html() == 'ERROR'){
-									$(this).html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
-									if(translations['errors'][id]['text']){
-										$(this).parent().next().html(translations['errors'][id]['text']);
+					else{
+						//file upload error messages
+						$('body').on('click', 'input[type="submit"]', function a2(){
+							$('body').off('click', 'input[type="submit"]', a2);
+							setTimeout(function(){
+								$('.ui-dialog-title').each(function(){
+									if($(this).is(':visible') && $(this).html() == 'ERROR'){
+										$(this).html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
+										if(translations['errors'][id]['text']){
+											$(this).parent().next().html(translations['errors'][id]['text']);
+										}
+										$(this).parent().next().next().children().children().html("✔");
+										return;
 									}
-									$(this).parent().next().next().children().children().html("✔");
-									return;
-								}
-							});
-						}, 10);
-					});
-				}
-				else{
-					//file upload error messages
-					$('body').on('click', 'input[type="submit"]', function a2(){
-						$('body').off('click', 'input[type="submit"]', a2);
-						setTimeout(function(){
-							$('.ui-dialog-title').each(function(){
-								if($(this).is(':visible') && $(this).html() == 'ERROR'){
-									$(this).html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
-									if(translations['errors'][id]['text']){
-										$(this).parent().next().html(translations['errors'][id]['text']);
-									}
-									$(this).parent().next().next().children().children().html("✔");
-									return;
-								}
-							});
-						}, 10);
-					});
-				}
-			}, 500);
+								});
+							}, 10);
+						});
+					}
+				}, 500);
+			}
 		});
 
 		//error messages (invalid input in text boxes)
@@ -157,9 +173,96 @@
 		});
 
 		//startUp
-		$('body').append('<div id="p1000Overlay" style="text-align:center;vertical-align:middle;display:none;z-index:10000;position:fixed;top:0px;bottom:0px;right:0px;left:0px;background-color:rgba(0, 0, 0, 0.7);"></div>');
+		$('body').append('<div id="p1000Overlay" style="text-align:center;vertical-align:middle;display:none;z-index:10000;position:fixed;top:0px;bottom:0px;right:0px;left:0px;background-color:rgba(0, 0, 0, 0.7);"><div id="closeOverlay" onclick="$(\'#p1000Overlay\').hide();">✖</div></div>');
 		$('#p1000Overlay').append('<div id="p1000ChooseLang" style="display:none;position:fixed;top:50%;left:50%;transform: translate(-50%, -50%);width:;"></div>');
+		
+		// translate modals (form-specific)
+		$('body').on('dialogopen', '.simpleDialog', function() {
+			if (form_settings) {
+				var modal = $("div.simpleDialog").parent();
+				
+				// translate erase signatures modal
+				if ($(modal).find("div#resetSignatureValuesDialog").length) {
+					// title
+					$(modal).find('span.ui-dialog-title').html(form_settings.econsent.erase_title);
+					// modal text
+					$(modal).find(".ui-dialog-content").html(form_settings.econsent.erase_text);
+					// erase button
+					$(modal).find("div.ui-dialog-buttonset button").eq(1).html(form_settings.econsent.cancel_button);
+					// cancel button
+					$(modal).find("div.ui-dialog-buttonset button").eq(0).html(form_settings.econsent.erase_button);
+				}
+				
+				if ($(modal).find("#signature-div:visible").length) {
+					// title
+					$(modal).find('span.ui-dialog-title').html(form_settings.field_level.add_signature);
+					// modal text
+					$(modal).find("div#field_name_popup").html(form_settings.field_level.signature_prompt);
+					// cancel button
+					$(modal).find("#signature-div-actions button").html(form_settings.field_level.save_signature);
+					// reset link
+					$(modal).find("#signature-div-actions a").html(form_settings.field_level.reset);
+				}
+				
+				if ($(modal).find("#f1_upload_form:visible").length) {
+					// title
+					$(modal).find('span.ui-dialog-title').html(form_settings.field_level.upload_file);
+					// modal text
+					$(modal).find("div#field_name_popup").html(form_settings.field_level.upload_prompt1);
+					// modal text 2
+					$(modal).find("div#f1_upload_form div").eq(0).html(form_settings.field_level.upload_prompt2);
+					// choose file button
+					// $(modal).find("div#f1_upload_form input").eq(0).val(form_settings.field_level.choose_file);
+					// no file chosen note
+					
+					// Upload file button text
+					$(modal).find("#f1_upload_form button i")[0].nextSibling.textContent = " " + form_settings.field_level.upload_button;
+					// max file size note
+					$(modal).find("#f1_upload_form span").html(form_settings.field_level.max_size);
+				}
+			}
+		});
 	});
+	
+	function econsent_pdf(){
+		var id = 0;
+		for(id in languages){
+			if(languages[id] == lang){
+				break;
+			}
+		}
+		
+		//change iframe source
+		$('iframe').each(function(){
+			if($(this).attr('src').indexOf('compact=1') > -1){
+				//console.log(pdf_url + '&langIndex=' + id + '&display=1');
+				//$(this).attr('src', pdf_url + '&langIndex=' + id + '&display=1');
+				$(this).src = pdf_url + '&langIndex=' + id + '&display=1';
+				$(this).parent().attr('data', pdf_url + '&langIndex=' + id + '&display=1');
+			}
+		});
+		
+		//change econsent checkbox text
+		if($('#econsent_confirm_checkbox_label').is(':visible')){
+			for(id in settings['encoding-language']['value']){
+				if(settings['encoding-language']['value'][id] == lang){
+					break;
+				}
+			}
+			
+			if(settings['econsent-checkbox-text']['value'][id]){
+				$('#econsent_confirm_checkbox_label').html('<input type="checkbox" id="econsent_confirm_checkbox"> ' + settings['econsent-checkbox-text']['value'][id]);
+			}
+		}
+	}
+	
+	function getURLLanguage(){
+		//use url
+		if(getVariable(langVar)){
+			setNormalCookie('p1000Lang', getVariable(langVar), .04);
+			return;
+		}
+	}
 
 	function loadSettings(){
 		// Get Settings JSON
@@ -174,7 +277,7 @@
 		data2['project_id'] = pid;
 		data2['field_name'] = langVar;
 		var json2 = encodeURIComponent(JSON.stringify(data2));
-
+		
 		$.when(
 			// Get Settings
 			$.ajax({
@@ -183,6 +286,11 @@
 				data: 'data=' + json,
 				success: function (r) {
 					settings = r;
+					if (settings['show-all-lang-buttons'] && settings['show-all-lang-buttons'].value) {
+						addAllLangButtons();
+					}
+					settingsRetrieved = true;
+					loadFormSettings();
 				},
 				error: function(jqXHR, textStatus, errorThrown) {
 				   console.log(textStatus, errorThrown);
@@ -195,8 +303,13 @@
 				data: 'data=' + json2,
 				success: function (r) {
 					languages = r;
+					if (settings['show-all-lang-buttons'] && settings['show-all-lang-buttons'].value) {
+						addAllLangButtons();
+					}
+					languagesRetrieved = true;
 					totalLanguages = Object.keys(languages).length;
 					getLanguage();
+					loadFormSettings();
 				},
 				error: function(jqXHR, textStatus, errorThrown) {
 				   console.log(textStatus, errorThrown);
@@ -210,46 +323,71 @@
 	}
 
 	function translatePopup(){
-		var tmp = $('#reqPopup').html();
-		if(tmp != undefined){
-			tmp = tmp.replace('Your data was successfully saved, but you did not provide a value for some fields that require a value.', '');
-			tmp = tmp.replace('Please enter a value for the fields on this page that are listed below.<br><br>','');
-			tmp = tmp.replace('Provide a value for...<br>', '');
-
-			//replace text
-			var id;
-			for(id in translations['defaults']){
-				if(tmp.indexOf(translations['defaults'][id]) > -1){
+		if (form_settings) {
+			if (!$('#reqPopup').length)
+				return;
+			var modal = $("#reqPopup").parent();
+			
+			// translate title
+			$(modal).find('.ui-dialog-title').html(form_settings.field_level.modal_title);
+			
+			// translate modal text
+			var modal_text = $(modal).find('.ui-dialog-content').html();
+			var div_portion = modal_text.match(/(<div.*>)/gm);
+				// replace bolded field labels
+			for(var id in translations['defaults']) {
+				if(div_portion.indexOf(translations['defaults'][id]) > -1){
 					if(translations['questions'][id] != undefined){
-						tmp = tmp.replace(translations['defaults'][id], translations['questions'][id]['text']);
+						div_portion = div_portion.replace(translations['defaults'][id], translations['questions'][id]['text']);
 					}
 				}
 			}
+			$(modal).find('.ui-dialog-content').html(form_settings.field_level.instructions + div_portion);
+			
+			// translate Okay button
+			$(modal).find("div.ui-dialog-buttonset button").eq(0).html(form_settings.field_level.modal_close);
+			
+		} else {
+			var tmp = $('#reqPopup').html();
+			if(tmp != undefined){
+				tmp = tmp.replace('Your data was successfully saved, but you did not provide a value for some fields that require a value.', '');
+				tmp = tmp.replace('Please enter a value for the fields on this page that are listed below.<br><br>','');
+				tmp = tmp.replace('Provide a value for...<br>', '');
 
-			$('#reqPopup').html(tmp);
-
-			setTimeout(function(){
-				$('#ui-id-1').html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
-				$('#ui-id-2').html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
-				$('.ui-dialog-title').each(function(){
-					if($(this).is(':visible')){
-						$(this).html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
+				//replace text
+				var id;
+				for(id in translations['defaults']){
+					if(tmp.indexOf(translations['defaults'][id]) > -1){
+						if(translations['questions'][id] != undefined){
+							tmp = tmp.replace(translations['defaults'][id], translations['questions'][id]['text']);
+						}
 					}
-				});
-				$('#reqPopup').next().children().children().html('&#x2714;');
-			}, 300);
+				}
+
+				$('#reqPopup').html(tmp);
+
+				setTimeout(function(){
+					$('#ui-id-1').html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
+					$('#ui-id-2').html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
+					$('.ui-dialog-title').each(function(){
+						if($(this).is(':visible')){
+							$(this).html('<span style="font-size:20px;font-weight:bold;">&#x26a0;</span>');
+						}
+					});
+					$('#reqPopup').next().children().children().html('&#x2714;');
+				}, 300);
+			}
 		}
 	}
 
 	//specific functions
 	function symbols(){
-
 		//popup
 		$('#redcapValidationErrorPopup').html('<center><span style="color:red;font-size:50px;">&#x26D4;</span></center>');
 
 		//previous page
 		$('.ui-button-text').each(function(){
-			if($(this).html() == '&lt;&lt; Previous Page'){
+			if($(this).html() == '&lt;&lt; Previous Page' && !form_settings){
 				$(this).css('font-size','20px');
 				$(this).html('&lt;&lt;');
 			}
@@ -304,14 +442,14 @@
 			}
 		}
 		
-		if(langKey > -1){
+		if(langKey > -1 && typeof settings['save-return-later-corner']['value'][langKey] == 'string'){
 			//save and return button
 			$('[name="submit-btn-savereturnlater"]').html(settings['save-return-later-button']['value'][langKey]);
-			
+
 			//save and return corner
 			$('#return_corner').html(settings['save-return-later-corner']['value'][langKey]);
-			
-			//save and return continue button
+
+			//save and return continue button^M
 			var b = '';
 			var t = '';
 			try{
@@ -321,7 +459,6 @@
 			catch(e){
 				//console.log(e.message);
 			}
-			
 			//save and return popup text
 			$('#dpop').children().children().children(1).children().children().children().children().html(settings['save-return-later-text']['value'][langKey] + '<br>' + b);
 		}
@@ -435,7 +572,8 @@
 	function addLanguageButtons(){
 		var i;
 		for(i in languages){
-			$('#p1000ChooseLang').append('<p><div class="setLangButtons" id="changeLang1" name="' + languages[i] + '" style="display:none;float:left;width:' + (settings['button-width'] && settings['button-width']['value'] ? settings['button-width']['value'] : '100px') + ';color:' + (settings['font-color'] && settings['font-color']['value'] ? settings['font-color']['value'] : '') + ';background:' + (settings['background-color'] && settings['background-color']['value'] ? settings['background-color']['value'] : '') + ';margin-top:20px;" onclick="$(\'#p1000Overlay\').fadeOut();$(\'#p1000ChooseLang\').fadeOut();">' + languages[i] + '</div></p>');
+			//id="changeLang1"
+			$('#p1000ChooseLang').append('<p><div class="setLangButtons" name="' + languages[i] + '" style="display:none;float:left;width:' + (settings['button-width'] && settings['button-width']['value'] ? settings['button-width']['value'] : '100px') + ';color:' + (settings['font-color'] && settings['font-color']['value'] ? settings['font-color']['value'] : '') + ';background:' + (settings['background-color'] && settings['background-color']['value'] ? settings['background-color']['value'] : '') + ';margin-top:20px;" onclick="$(\'#p1000Overlay\').fadeOut();$(\'#p1000ChooseLang\').fadeOut();">' + languages[i] + '</div></p>');
 		}
 		
 		var timing = 300;
@@ -444,11 +582,23 @@
 			timing += 150;
 		});
 	}
-
+	
+	function addAllLangButtons() {
+		$(".setLangButtons").remove();
+		// if ($('#p1000Overlay').length)
+			$("#p1000Overlay").remove();
+		// if ($('#changeLang').length)
+			$("#changeLang").remove();
+		Object.values(languages).forEach(function(language, i) {
+			$('#surveytitle').parent().append("<div class='setLangButtons' name='" + language + "'>" + language + "</div>");
+		});
+	}
+	
 	function translate(){
 		if(langReady == 1 && !settings['empty']){
 			clearInterval(interval);
-			$('#changeLang').show();
+			if ($('#changeLang').length)
+				$('#changeLang').show();
 
 			//add buttons to startUp
 			if($('#p1000Overlay').is(':visible') && $('#p1000ChooseLang').html() == ''){
@@ -472,43 +622,62 @@
 
 			//required fields popup
 			translatePopup();
-
-			$('#changeLang').html(lang);
-			if(lang.length > 2){
-				$('#changeLang').css('width', (settings['button-width'] && settings['button-width']['value'] ? settings['button-width']['value'] : '100px'));
-				$('#changeLang').css('padding-left','8px');
-				$('#changeLang').css('padding-right','8px');
+			
+			if ($('#changeLang').length) {
+				$('#changeLang').html(lang);
+				if(lang.length > 2){
+					$('#changeLang').css('width', (settings['button-width'] && settings['button-width']['value'] ? settings['button-width']['value'] : '100px'));
+					$('#changeLang').css('padding-left','8px');
+					$('#changeLang').css('padding-right','8px');
+				}
+				else{
+					$('#changeLang').css('width', (settings['button-width'] && settings['button-width']['value'] ? settings['button-width']['value'] : '30px'));
+					$('#changeLang').css('padding-left','');
+					$('#changeLang').css('padding-right','');
+				}
+				$('#changeLang').css('background', (settings['background-color'] && settings['background-color']['value'] ? settings['background-color']['value'] : ''));
+				$('#changeLang').css('color', (settings['font-color'] && settings['font-color']['value'] ? settings['font-color']['value'] : ''));
+				$('#changeLang').css('opacity','1');
 			}
-			else{
-				$('#changeLang').css('width', (settings['button-width'] && settings['button-width']['value'] ? settings['button-width']['value'] : '30px'));
-				$('#changeLang').css('padding-left','');
-				$('#changeLang').css('padding-right','');
-			}
-			$('#changeLang').css('background', (settings['background-color'] && settings['background-color']['value'] ? settings['background-color']['value'] : ''));
-			$('#changeLang').css('color', (settings['font-color'] && settings['font-color']['value'] ? settings['font-color']['value'] : ''));
-			$('#changeLang').css('opacity','1');
-
+			
 			//remove required english label
-			$('.requiredlabel').remove();
+			if (!form_settings)
+				$('.requiredlabel').remove();
 			$('.multilingual').remove();
 
 			//questions
 			var id;
 			for(id in translations['questions']){
 				if(translations['questions'][id]['matrix'] != null){
+					if(!(translations['questions'][id]['matrix'] in matrixProcessed) && settings['hide-matrix-questions-without-translation-survey'] && settings['hide-matrix-questions-without-translation-survey']['value']) {
+						$('tr[mtxgrp="'+translations['questions'][id]['matrix']+'"].mtxfld').each(function(){
+							var curMtxQuestionId = $(this).attr('id');
+							curMtxQuestionId = curMtxQuestionId.replace('-tr', '');
+							if(typeof translations['questions'][curMtxQuestionId] == 'undefined') {
+								$(this).hide();
+							} else {
+								$(this).show();
+							}
+						});
+						matrixProcessed[translations['questions'][id]['matrix']] = true;
+					}
 					//$('#' + id + '-tr').children('td').eq(1).children('table').children().children().children('td:first').html(translations['questions'][id]['text']);
 					$('#label-' + id).html(translations['questions'][id]['text']);
-				}
-				else if(translations['questions'][id]['type'] == 'descriptive'){
+				} else if(translations['questions'][id]['type'] == 'descriptive'){
 					var tmp = $('#' + id + '-tr').children('td').eq(1).html();
 					if(tmp != undefined){
 						$('#' + id + '-tr').children('td').eq(1).html(translations['questions'][id]['text']);
 						//tmp = tmp.split(/<(.+)/);
 						//$('#' + id + '-tr').children('td').eq(1).html(translations['questions'][id]['text'] + ' <' + tmp[1]);
 					}
-				}
-				else{
-					$('#label-' + id).html(translations['questions'][id]['text']);
+				} else {
+					var nodes = $('#label-' + id).contents()
+					for (var i = 0; i < nodes.length; i++) {
+						if (nodes[i].nodeType === 3) {
+							nodes[i].textContent = translations['questions'][id]['text'];
+							break;
+						}
+					};
 				}
 			}
 
@@ -518,22 +687,26 @@
 					var id2;
 					for(id2 in translations['answers'][id]['text']){
 						$('[name="' + id + '"] option').each(function(){
+							$(this).show();
 							if($(this).val() == id2){
 								$(this).text(translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation-survey'] && settings['hide-answers-without-translation-survey']['value'] && $(this).val() !== '' && $(this).data('lang') !== lang) {
+								$(this).hide();
 							}
 						});
 					}
 				}
-				else if(translations['answers'][id]['type'] == 'date'){
+				else if(translations['answers'][id]['type'] == 'date' || translations['answers'][id]['type'] == 'time'){
 					//$('#' + id + '-tr').children().last().children().eq(2).children().html(translations['answers'][id]['text'][0]);
 					//$('#' + id + '-tr').children().last().children().eq(1).children().html(translations['answers'][id]['text'][0]);
 					$('#' + id + '-tr').find('button').html(translations['answers'][id]['text'][0]);
 				}
 				else if(translations['answers'][id]['type'] == 'signature'){
-					$('#' + id + '-tr').children().last().children().eq(3).children().eq(1).html(translations['answers'][id]['text'][0]);
+					$('#' + id + '-tr').find('.fileuploadlink').html(translations['answers'][id]['text'][0]);
 				}
 				else if(translations['answers'][id]['type'] == 'file'){
-					$('#' + id + '-tr').children().last().children().eq(2).children().eq(1).html(translations['answers'][id]['text'][0]);
+					$('#' + id + '-tr').find('.fileuploadlink').html(translations['answers'][id]['text'][0]);
 				}
 				else if(translations['answers'][id]['type'] == 'slider'){
 					if (translations['answers'][id]['text'][0] != null) $('#sldrlaba-' + id).html(translations['answers'][id]['text'][0]);
@@ -544,9 +717,8 @@
 					var id2;
 					var counter = 1;
 					for(id2 in translations['answers'][id]['text']){
-						//translations['answers'][id]['text'][id2]);
-						//$('#' + translations['answers'][id]['matrix'] + '-mtxhdr-tr').children('td').eq(1).children().children().children().children('td').eq(counter).html(translations['answers'][id]['text'][id2]);
 						$('#matrixheader-' + translations['answers'][id]['matrix'] + '-' + id2).html(translations['answers'][id]['text'][id2]);
+						$('.floatMtxHdr').find('#matrixheader-' + translations['answers'][id]['matrix'] + '-' + id2).html(translations['answers'][id]['text'][id2]);
 						counter++;
 					}
 				}
@@ -554,9 +726,14 @@
 					var id2;
 					for(id2 in translations['answers'][id]['text']){
 						$('[name="' + id + '___radio"]').each(function(){
+							$(this).parent().contents().last().show();
+							$(this).show();
 							if($(this).val() == id2){
-								//$(this).parent().contents().last().replaceWith(' ' + translations['answers'][id]['text'][id2]);
 								$(this).parent().contents().last().html(' ' + translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation-survey'] && settings['hide-answers-without-translation-survey']['value'] && $(this).data('lang') !== lang) {
+								$(this).parent().contents().last().hide();
+								$(this).hide();
 							}
 						});
 					}
@@ -564,8 +741,16 @@
 					for(id2 in translations['answers'][id]['text']){
 						$('.ec').each(function(){
 							var tmp = $(this).parent().attr('comps').split(',');
-							if(tmp[0] == id && tmp[2] == id2){
-								$(this).html(translations['answers'][id]['text'][id2]);
+							if($(this).parent().parent().hasClass('enhancedchoice')) {
+								$(this).parent().show();
+							}
+							if(tmp[0] == id && tmp[2] == id2) {
+								$(this).html(' ' + translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation-survey'] && settings['hide-answers-without-translation-survey']['value'] && $(this).data('lang') !== lang) {
+								if($(this).parent().parent().hasClass('enhancedchoice')) {
+									$(this).parent().hide();
+								}
 							}
 						});
 					}
@@ -573,17 +758,35 @@
 				else if(translations['answers'][id]['type'] == 'checkbox'){
 					var id2;
 					for(id2 in translations['answers'][id]['text']){
-						$('[name="__chk__' + id + '_RC_' + id2 + '"]').each(function(){
-							//$(this).parent().contents().last().replaceWith(' ' + translations['answers'][id]['text'][id2]);
-							$(this).parent().contents().last().html(' ' + translations['answers'][id]['text'][id2]);
+						$('#'+id+'-tr .choicevert').each(function(){
+							if(!$(this).hasClass('hidden')) {
+								$(this).show();
+							}
+
+							if($(this).find('[name="__chk__' + id + '_RC_' + id2 + '"]').length) {
+								$(this).contents().last().html(' ' + translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation-survey'] && settings['hide-answers-without-translation-survey']['value'] && $(this).data('lang') !== lang) {
+								$(this).hide();
+							}
 						});
 					}
 					//enhanced checkboxes
 					for(id2 in translations['answers'][id]['text']){
 						$('.ec').each(function(){
 							var tmp = $(this).parent().attr('comps').split(',');
-							if(tmp[0] == id && tmp[2] == id2){
+
+							if($(this).parent().parent().hasClass('enhancedchoice')) {
+								$(this).parent().show();
+							}
+
+							if(tmp[0] == id && tmp[2] == id2) {
 								$(this).html(translations['answers'][id]['text'][id2]);
+								$(this).data('lang', lang);
+							} else if(settings['hide-answers-without-translation-survey'] && settings['hide-answers-without-translation-survey']['value'] && $(this).data('lang') !== lang) {
+								if($(this).parent().parent().hasClass('enhancedchoice')) {
+									$(this).parent().hide();
+								}
 							}
 						});
 					}
@@ -633,21 +836,155 @@
 				$('#surveytitle').css('text-align','');
 				$('#surveyinstructions').css('text-align','');
 			}
-
+			
 			langReady = 2;
 
 			piping();
 			stopText();
 			controlText();
+		
 			if(settings['languages_variable'] && settings['languages_variable']['value']){
-				doBranching(settings['languages_variable']['value']);
+				if($('#' + settings['languages_variable']['value'] + '-tr').length){
+					doBranching(settings['languages_variable']['value']);
+				}
 			}
 			else{
-				doBranching('languages');
+				if($('#languages-tr').length){
+					doBranching('languages');
+				}
+			}
+			
+			//econsent pdf
+			if(pdf_url.substring(0, 5) != 'false'){
+				econsent_pdf();
+			}
+			
+			form_translate();
+		}
+	}
+	
+	function form_translate() {
+		// form specific translation from Survey Settings
+		if (form_settings) {
+			
+			// // basic survey text translations
+			if ($("#surveytitle").length)	// survey title
+				$("#surveytitle").html(form_settings.survey_settings.title);
+			if ($("#surveyinstructions").length) {	// survey title
+				var textArea = document.createElement('textarea');
+				textArea.innerHTML = form_settings.survey_settings.instructions;
+				$("#surveyinstructions").html(textArea.value);
+			}
+			if ($("#changeFont").length)	// resize font
+				$("#changeFont div").eq(0).html(form_settings.basic_settings.resize_font)
+			if ($("[name='submit-btn-saverecord']").length) // next page
+				$("[name='submit-btn-saverecord']").html(form_settings.basic_settings.next + " >>");
+			if ($("[name='submit-btn-saveprevpage']").length) // prev page
+				$("[name='submit-btn-saveprevpage']").html("<< " + form_settings.basic_settings.previous);
+			$("button").each(function(i, e) { // "close survey" button
+				var onclick_text = $(e).attr('onclick');
+				if (typeof onclick_text == 'string') {
+					if ($(e).attr('onclick').includes('__closewindow=1'))
+						$(e).html(form_settings.basic_settings.close);
+				}
+			})
+			if ($("#surveyacknowledgment").length) { // survey acknowledgement
+				var textArea = document.createElement('textarea');
+				textArea.innerHTML = form_settings.survey_settings.acknowledgement;
+				$("#surveyacknowledgment").html(textArea.value);
+			}
+			
+			// translate save and return later feature elements
+			var save_button = $('[name="submit-btn-savereturnlater"]').html();
+			if (typeof form_settings.save_and_return_survey.button === 'string') {
+				save_button = form_settings.save_and_return_survey.button;
+			}
+			$('[name="submit-btn-savereturnlater"]').html(save_button);
+			
+			var popup = $('#dpop .popup-contents tbody tr td');
+			if ($(popup).length) {
+				// copy existing text
+				
+				var corner_text = $('#return_corner').html();
+				var title = $(popup).find('span').eq(1).html();
+				var popup_text = $(popup).find('div')[0].previousSibling.textContent;
+				var popup_button = $(popup).find('button').html();
+
+				// translate where possible (setting exists)
+				if (typeof form_settings.save_and_return_survey.popup_hint === 'string') {
+					corner_text = form_settings.save_and_return_survey.popup_hint;
+				}
+				if (typeof form_settings.save_and_return_survey.popup_title === 'string') {
+					title = "<b>" + corner_text + "</b> " + form_settings.save_and_return_survey.popup_title;
+				}
+				if (typeof form_settings.save_and_return_survey.popup_text === 'string') {
+					popup_text = form_settings.save_and_return_survey.popup_text;
+				}
+				if (typeof form_settings.save_and_return_survey.popup_button === 'string') {
+					popup_button = form_settings.save_and_return_survey.popup_button;
+				}
+				
+				//save and return corner
+				$('#return_corner a b').html(corner_text);
+				
+				// popup title
+				$(popup).find('span').eq(1).html(title);
+				
+				// popup text
+				$(popup).find('div')[0].previousSibling.textContent = popup_text;
+				
+				// popup button
+				$(popup).find('button').html(popup_button);
+			}
+			
+			// translate e-consent text elements
+			if ($("input#econsent_confirm_checkbox").length != 0) {
+				$("#econsent_confirm_checkbox_div").prev('div').prev('div').html(form_settings.econsent.top);
+				$("input#econsent_confirm_checkbox")[0].nextSibling.textContent = form_settings.econsent.checkbox;
+				$("#econsent_confirm_checkbox_div").next('div').html(form_settings.econsent.bottom);
+			}
+			
+			// translate return code form after survey submitted
+			if ($("#return_code_completed_survey_div img")[0])
+				$("#return_code_completed_survey_div img")[0].nextSibling.textContent = form_settings.save_and_return_saved.survey_complete;
+			if ($("#return_code_completed_survey_div div:eq(0) span")[0])
+				$("#return_code_completed_survey_div div:eq(0) span")[0].previousSibling.textContent = form_settings.save_and_return_saved.return_code + ": ";
+			
+			// translate 'Download your survey response (PDF)' and 'Download' button
+			$("button").each(function(i, e) {
+				var onclick_text = $(e).attr('onclick');
+				if (typeof onclick_text == 'string') {
+					if ($(e).attr('onclick').includes('window.open') && $(e).attr('onclick').includes('appendEconsentFooter=1')) {
+						var download_pdf_button = $(e).find('span');
+						var download_pdf_label = $(e).prev('b');
+						if ($(download_pdf_button).length)
+							$(download_pdf_button).html(form_settings.download_response.button);
+						if ($(download_pdf_label).length)
+							$(download_pdf_label).html(form_settings.download_response.label);
+					}
+				}
+			})
+			
+			// translate field level text
+			if ($("div.requiredlabel").length)	// '* must provide value' text
+				$("div.requiredlabel").html(form_settings.field_level.text);
+			if ($(".expandLink").length)	// textarea "Expand" links
+				$(".expandLink").html(form_settings.field_level.expand);
+			if ($(".smalllink").length)	// input "reset" links
+				$(".smalllink").html(form_settings.field_level.reset);
+			if ($(".fileuploadlink:contains('Add signature')").length) {	// signature field "Add Signature" links
+				$(".fileuploadlink:contains('Add signature')").each(function(i, e) {
+					$(e).find('i')[0].nextSibling.textContent = form_settings.field_level.add_signature;
+				})
+			}
+			if ($(".fileuploadlink:contains('Upload file')").length) {	// file upload field "Upload file" links
+				$(".fileuploadlink:contains('Upload file')").each(function(i, e) {
+					$(e).find('i')[0].nextSibling.textContent = form_settings.field_level.upload_file;
+				})
 			}
 		}
 	}
-
+	
 	function piping(){
 		$('.piping_receiver').each(function(){
 			var classes = $(this).attr('class').split(' ');
@@ -672,7 +1009,6 @@
 		langReady = 0;
 		if(newLang == null){
 			lang = getCookie('p1000Lang');
-
 			if(lang == "-1"){
 				//lang = languages[Object.keys(languages)[0]];
 
@@ -705,8 +1041,9 @@
 		data['lang'] = lang;
 		data['project_id'] = pid;
 		data['record_id'] = $('[name="' + table_pk + '"]').val();
-		data['event_id'] = event_id;
-		data['page'] = $('#surveytitle').html().replace(/ /g,'_').toLowerCase();
+		if (data['event_id'])
+			data['event_id'] = event_id;
+		//data['page'] = $('#surveytitle').html().replace(/ /g,'_').toLowerCase();
 		var t;
 		for(t in languages){
 			if(languages[t] == lang){
@@ -736,8 +1073,12 @@
 				//hide if no translations
 				if(!anyTranslated && (r == null || (r['questions'] == null && r['answers'] == null && r['notes'] == null))){
 					clearInterval(interval);
-					$('#changeLang').remove();
-					setCookie('p1000Lang', 'en', -1);
+					
+					if ($('#changeLang').length)
+						$('#changeLang').remove();
+					
+					// commenting out to prevent issue where overlay is shown again
+					// setCookie('p1000Lang', 'en', -1);
 				} else {
 					// if language is not previously set in cookies, let user choose
 					if(getCookie('p1000Lang') == "-1"){
@@ -747,6 +1088,7 @@
 					translations = r;
 					langReady = 1;
 					anyTranslated = true;
+					matrixProcessed = {};
 				}
 			},
 			error: function(jqXHR, textStatus, errorThrown) {
@@ -755,6 +1097,39 @@
 		});
 	}
 
+	function loadFormSettings() {
+		// overwrite project-level $settings with form-specific $form_settings
+		if (!settingsRetrieved || !languagesRetrieved)
+			return;
+		
+		// parse stored form_settings JSON
+		if (typeof settings.instruments.value === 'string')
+			settings.instruments = JSON.parse(settings.instruments.value)
+		
+		// if text translations exist for this instrument/lang combo, then set form_settings
+		if (settings.instruments[instrument_name] && settings.instruments[instrument_name][lang]) {
+			form_settings = settings.instruments[instrument_name][lang];
+		} else {
+			form_settings = null;
+		}
+		
+		// if survey acknowledgement text is shown, add buttons so user can translate survey acknowledgement text
+		if ($("#surveyacknowledgment").length && !$("#language_buttons").length) {
+			$("#pagecontent").prepend("<div id='language_buttons'></div>");
+			for (let [lang, s] of Object.entries(settings.instruments[instrument_name])) {
+				$("#language_buttons").append("<button>" + lang + "</button>")
+			}
+			$("#language_buttons button").css('width', "100px");
+			$("#language_buttons").show();
+			
+			$("#language_buttons").on('click', 'button', function() {
+				var lang = $(this).html();
+				form_settings = settings.instruments[instrument_name][lang];
+				form_translate();
+			});
+		}
+	}
+	
 	//generic functions
 	function getVariable(variable){
 		var query = window.location.search.substring(1);

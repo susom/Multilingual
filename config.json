@@ -15,7 +15,10 @@
 		{"1.8": "Piping for answers"},
 		{"1.8.1": "Bug fix for validation popup"},
 		{"1.8.2": "Bug fix for removing html on the data entry page"},
-		{"1.8.3": "Translate notes/slider, default validation messages translations, stop action translations, bug fixes"}
+		{"1.8.3": "Translate notes/slider, default validation messages translations, stop action translations, bug fixes"},
+		{"1.10.0": "Added form-specific text translation settings in the Survey Settings page"},
+		{"1.10.1": "Fix bugs that might prevent Survey Settings module values from loading or translation would fail on the surey page"},
+		{"1.11.3": "Added eConsent, basic navigation, and field-specific translation settings"}
 	],
 
 	"authors": [
@@ -38,8 +41,15 @@
 		"redcap_survey_page"
 	],
 
-	"links": [
-	],
+	"links": {
+		"project": [
+			{
+				"name": "Multilingual Data Dictionary Support",
+				"icon": "gear",
+				"url": "dataDictionaryHelper.php"
+			}
+		]
+	},
 
 	"no-auth-pages": [
 		"index",
@@ -107,10 +117,58 @@
 			"type": "checkbox",
 			"repeatable": false,
 			"default": ""
-		},	
+		},
+		{
+			"key": "show-all-lang-buttons",
+			"name": "Always show all language select buttons",
+			"required": false,
+			"type": "checkbox",
+			"repeatable": false,
+			"default": ""
+		},
+		{
+			"key": "hide-answers-without-translation",
+			"name": "Hide Answers that do not have a translation on instruments. (Radio/Dropdown/Checkbox Options without a translation for the current language will not be displayed)",
+			"required": false,
+			"type": "checkbox",
+			"repeatable": false,
+			"default": ""
+		},
+		{
+			"key": "hide-matrix-questions-without-translation",
+			"name": "Hide Matrix Field Questions that do not have a translation on instruments. (Matrix Rows/Questions without a translation for the current language will not be displayed)",
+			"required": false,
+			"type": "checkbox",
+			"repeatable": false,
+			"default": ""
+		},
+		{
+			"key": "hide-answers-without-translation-survey",
+			"name": "Hide Answers that do not have a translation on surveys. (Radio/Dropdown/Checkbox Options without a translation for the current language will not be displayed)",
+			"required": false,
+			"type": "checkbox",
+			"repeatable": false,
+			"default": ""
+		},
+		{
+			"key": "hide-matrix-questions-without-translation-survey",
+			"name": "Hide Matrix Field Questions that do not have a translation on surveys. (Matrix Rows/Questions without a translation for the current language will not be displayed)",
+			"required": false,
+			"type": "checkbox",
+			"repeatable": false,
+			"default": ""
+		},
+		{
+			"key": "multilingual-econsent",
+			"name": "Use multilingual PDFs for eConsent/survey download",
+			"required": false,
+			"type": "checkbox",
+			"repeatable": false,
+			"default": ""
+		},		
 		{
 			"key": "multilingual-project-encoding",
-			"name": "PDF Encodings",
+			"name": "PDF Encodings/Translations",
 			"required": false,
 			"type": "sub_settings",
 			"repeatable": true,
@@ -134,6 +192,13 @@
 					"name": "PDF Title",
 					"required": false,
 					"type": "text",
+					"repeatable": false
+				},
+				{
+					"key": "econsent-checkbox-text",
+					"name": "EConsent Checkbox Text",
+					"required": false,
+					"type": "notes",
 					"repeatable": false
 				}
 			]

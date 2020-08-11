@@ -4,20 +4,27 @@ namespace CMH\Multilingual;
 use ExternalModules\AbstractExternalModule;
 use ExternalModules\ExternalModules;
 use \Piping as Piping;
+use REDCap;
 
 class Multilingual extends AbstractExternalModule
 {
-	function redcap_survey_page($project_id, $record, $instrument){
+	function redcap_survey_page($project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance){
 		$api_endpoint = $this->getProjectSetting('use-api-endpoint', $project_id);
 		// Update and add multilingual_survey.js
-		echo '<script type="text/javascript">' . str_replace('APP_PATH_IMAGES', APP_PATH_IMAGES, str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true, ($api_endpoint == true ? true : false)), file_get_contents($this->getModulePath() . 'js/multilingual_survey.js')))) . '</script>';
+		echo '<script type="text/javascript">' . 
+		str_replace('REDCAP_PDF_URL', ($this->getProjectSetting('multilingual-econsent', $project_id) ? $this->getUrl("multilingualPDF.php", true, ($api_endpoint == true ? true : false)) : 'false') . '&id=' . $record . '&form=' . $instrument . '&event_id=' . $event_id . '&instance=' . $repeat_instance, 
+		str_replace('APP_PATH_IMAGES', APP_PATH_IMAGES, 
+		str_replace('REDCAP_INSTRUMENT_NAME', $instrument, 
+		str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), 
+		str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true, ($api_endpoint == true ? true : false)), 
+		file_get_contents($this->getModulePath() . 'js/multilingual_survey.js')))))) . '</script>';
 		echo '<link rel="stylesheet" type="text/css" href="' .  $this->getUrl('css/multilingual.css', true, $api_endpoint == true) . '">';
 	}
 
-	function redcap_survey_complete($project_id, $record, $instrument){
+	function redcap_survey_complete($project_id, $record, $instrument, $event_id, $group_id = NULL, $survey_hash, $response_id = NULL, $repeat_instance){
 		$api_endpoint = $this->getProjectSetting('use-api-endpoint', $project_id);
 		// Update and add multilingual_survey_complete
-		echo '<script type="text/javascript">' . str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true, ($api_endpoint == true ? true : false)), file_get_contents($this->getModulePath() . 'js/multilingual_survey_complete.js'))) . '</script>';
+		echo '<script type="text/javascript">' . str_replace('REDCAP_PDF_URL', ($this->getProjectSetting('multilingual-econsent', $project_id) ? $this->getUrl("multilingualPDF.php", true, ($api_endpoint == true ? true : false)) : 'false') . '&id=' . $record . '&form=' . $instrument . '&event_id=' . $event_id . '&instance=' . $repeat_instance , str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true, ($api_endpoint == true ? true : false)), file_get_contents($this->getModulePath() . 'js/multilingual_survey_complete.js')))) . '</script>';
 	}
 
 	function redcap_data_entry_form($project_id, $record, $instrument){
@@ -27,6 +34,10 @@ class Multilingual extends AbstractExternalModule
 
 	function redcap_every_page_top($project_id){
 		$api_endpoint = $this->getProjectSetting('use-api-endpoint', $project_id);
+		$at_survey_settings = strpos($_SERVER['REQUEST_URI'], 'Surveys/edit_info.php') !== false || strpos($_SERVER['REQUEST_URI'], 'Surveys/create_survey.php') !== false;
+		
+		//$user_rights = REDCap::getUserRights();
+		//echo json_encode($user_rights);
 		
 		if(strpos($_SERVER['REQUEST_URI'], 'online_designer.php') !== false && isset($_GET['page'])){
 			echo '<link rel="stylesheet" type="text/css" href="' .  $this->getUrl('css/multilingual.css') . '">';
@@ -35,13 +46,42 @@ class Multilingual extends AbstractExternalModule
 		elseif(strpos($_SERVER['REQUEST_URI'], 'DataExport/index.php') !== false){
 			echo '<script type="text/javascript">' . str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true), file_get_contents($this->getModulePath() . 'js/multilingual_export.js'))) . '</script>';
 		}
-		elseif($_GET['__return'] == 1){
-			echo '<script type="text/javascript">' . str_replace('APP_PATH_IMAGES', APP_PATH_IMAGES, str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true, ($api_endpoint == true ? true : false)), file_get_contents($this->getModulePath() . 'js/multilingual_survey_return.js')))) . '</script>';
+		elseif($_GET['__return'] == 1 or (isset($_GET['s']) && !isset($_GET['__page__']))){
+			$instrument = $_GET['page'];
+			echo '<script type="text/javascript">' . 
+			str_replace('APP_PATH_IMAGES', APP_PATH_IMAGES, 
+			str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), 
+			str_replace('REDCAP_INSTRUMENT_NAME', $instrument, 
+			str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true, ($api_endpoint == true ? true : false)), 
+			file_get_contents($this->getModulePath() . 'js/multilingual_survey_return.js'))))) . '</script>';
+			
 			echo '<link rel="stylesheet" type="text/css" href="' .  $this->getUrl('css/multilingual.css', true, ($api_endpoint == true ? true : false)) . '">';
 		}
 		elseif(strpos($_SERVER['REQUEST_URI'], 'DataEntry/index.php') !== false || strpos($_SERVER['REQUEST_URI'], 'DataEntry/record_home.php') !== false){
 			echo '<link rel="stylesheet" type="text/css" href="' .  $this->getUrl('css/multilingual.css') . '">';
 			echo '<script type="text/javascript">' . str_replace('PDF_URL', $this->getUrl("multilingualPDF.php", true), str_replace('APP_PATH_IMAGES', APP_PATH_IMAGES, str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true), file_get_contents($this->getModulePath() . 'js/multilingual_pdf.js'))))) . '</script>';
+		}
+		elseif($at_survey_settings && isset($_GET['page'])){
+			$index_url = $this->getUrl("index.php", true, ($api_endpoint == true ? true : false));
+			$language_var = $this->languageVariable($project_id);
+			$stylesheet = '<link rel="stylesheet" type="text/css" href="' .  $this->getUrl('css/multilingual.css') . '">';
+			$ml_survey_settings_js = '<script type="text/javascript">' . file_get_contents($this->getUrl('js/multilingual_survey_settings.js')) . '</script>';
+			$ml_survey_settings_js = str_replace('REDCAP_AJAX_URL', $index_url, $ml_survey_settings_js);
+			$ml_survey_settings_js = str_replace('REDCAP_LANGUAGE_VARIABLE', $language_var, $ml_survey_settings_js);
+			
+			echo $stylesheet;
+			echo $ml_survey_settings_js;
+		} elseif (strpos($_SERVER['REQUEST_URI'], 'surveys/') !== false && isset($_GET['s'])) {
+			$api_endpoint = $this->getProjectSetting('use-api-endpoint', $project_id);
+			$instrument = $_GET['page'];
+			
+			echo '<script type="text/javascript">' . 
+			str_replace('APP_PATH_IMAGES', APP_PATH_IMAGES, 
+			str_replace('REDCAP_INSTRUMENT_NAME', $instrument, 
+			str_replace('REDCAP_LANGUAGE_VARIABLE', $this->languageVariable($project_id), 
+			str_replace('REDCAP_AJAX_URL', $this->getUrl("index.php", true, ($api_endpoint == true ? true : false)), 
+			file_get_contents($this->getModulePath() . 'js/multilingual_survey.js'))))) . '</script>';
+			echo '<link rel="stylesheet" type="text/css" href="' .  $this->getUrl('css/multilingual.css', true, $api_endpoint == true) . '">';
 		}
 	}
 
@@ -52,7 +92,7 @@ class Multilingual extends AbstractExternalModule
 	private function getMetaDataTableName($projectId){
 		global $conn;
 		if($this->getProjectSetting('use-drafted-changes', $projectId)){
-			$query = "select draft_mode from redcap_projects where project_id = $projectId";
+			$query = "select draft_mode from redcap_projects where project_id = " . mysqli_real_escape_string($conn, $data['project_id']);
 			if($result = mysqli_query($conn, $query)){
 				if($row = mysqli_fetch_array($result)){
 					$draftMode = $row["draft_mode"];
@@ -74,6 +114,48 @@ class Multilingual extends AbstractExternalModule
 			$langVar = 'languages';
 		}
 		return $langVar;
+	}
+	
+	public function getSurveySettings($data) {
+		$instruments = $this->getProjectSetting('instruments');
+		
+		if (!empty($instruments)) {
+			$instruments = json_decode($instruments);
+			$name = htmlspecialchars($data['instrument']);
+			$instrument = $instruments->$name;
+		} else {
+			$instruments = new \stdClass();
+		}
+		
+		header('Content-Type: application/json');
+		echo json_encode($instrument);
+	}
+	
+	public function saveSurveySettings($data) {
+		$instruments = $this->getProjectSetting('instruments');
+		$instrument = htmlspecialchars($data['instrument']);
+		$lang = htmlspecialchars($data['language']);
+		if (empty($instruments)) {
+			$instruments = new \stdClass();
+		} else {
+			$instruments = json_decode($instruments);
+		}
+		if (empty($instruments->$instrument)) {
+			$instruments->$instrument = new \stdClass();
+		}
+		if (empty($instruments->$instrument->$lang)) {
+			$instruments->$instrument->$lang = new \stdClass();
+		}
+		foreach ($data['collections'] as $coll_name => $coll) {
+			$instruments->$instrument->$lang->$coll_name = new \stdClass();
+			
+			// add each setting to collection after encoding HTML
+			foreach ($coll as $sname => $setting) {
+				$instruments->$instrument->$lang->$coll_name->$sname = htmlspecialchars($setting);
+			}
+		}
+		
+		$this->setProjectSetting('instruments', json_encode($instruments));
 	}
 
 	public function getSettings($data){
@@ -107,13 +189,13 @@ class Multilingual extends AbstractExternalModule
 
 		if($data['matrix'] == 1){
 			$query = "SELECT element_enum, element_type, element_validation_type, element_validation_min, element_validation_max FROM $metaDataTableName
-				WHERE project_id = " . $data['project_id'] . "
+				WHERE project_id = " . intval($data['project_id']) . "
 				AND grid_name LIKE '" . $data['field_name'] . "'
 				LIMIT 1";
 		}
 		else{
 			$query = "SELECT element_enum, element_type, element_validation_type FROM $metaDataTableName
-				WHERE project_id = " . $data['project_id'] . "
+				WHERE project_id = " . intval($data['project_id']) . "
 				AND field_name LIKE '" . $data['field_name'] . "'";
 		}
 		$result = mysqli_query($conn, $query);
@@ -132,7 +214,7 @@ class Multilingual extends AbstractExternalModule
 			$response[trim($tmp2[0])] = trim($tmp2[1]);
 		}
 
-		if($row['element_type'] == 'text' && strpos($row['element_validation_type'], 'date') !== false){
+		if($row['element_type'] == 'text' && (strpos($row['element_validation_type'], 'date') !== false || strpos($row['element_validation_type'], 'time') !== false)){
 			$response = null;
 			$response['0'] = 'Answer';
 		}
@@ -182,7 +264,7 @@ class Multilingual extends AbstractExternalModule
 		$metaDataTableName = $this->getMetaDataTableName($data['project_id']);
 
 		$query = "SELECT field_name, element_type, misc, grid_name, element_validation_type, element_validation_min, element_validation_max, element_label FROM $metaDataTableName
-			WHERE project_id = " . $data['project_id'] 
+			WHERE project_id = " . intval($data['project_id']) 
 				. ($data['page'] !='' ? " AND (form_name LIKE '" . $data['page'] . "' OR field_name LIKE 'survey_text_" . $data['page'] . "')" : '');
 		$result = mysqli_query($conn, $query);
 
@@ -208,6 +290,9 @@ class Multilingual extends AbstractExternalModule
 							$response['questions'][$row['field_name']]['text'] = Piping::replaceVariablesInLabel($trans, ($data['record_id'] ? $data['record_id'] : '0'), $data['event_id']);
 							if(strpos($row['element_validation_type'], 'date') !== false){
 								$response['questions'][$row['field_name']]['type'] = 'date';
+							}
+							elseif(strpos($row['element_validation_type'], 'time') !== false){
+								$response['questions'][$row['field_name']]['type'] = 'time';
 							}
 							else{
 								$response['questions'][$row['field_name']]['type'] = $row['element_type'];
@@ -247,6 +332,9 @@ class Multilingual extends AbstractExternalModule
 							$response['answers'][$row['field_name']]['text'] = $trans;
 							if(strpos($row['element_validation_type'], 'date') !== false){
 								$response['answers'][$row['field_name']]['type'] = 'date';
+							}
+							elseif(strpos($row['element_validation_type'], 'time') !== false){
+								$response['answers'][$row['field_name']]['type'] = 'time';
 							}
 							elseif(strpos($row['element_validation_type'], 'signature') !== false){
 								$response['answers'][$row['field_name']]['type'] = 'signature';
@@ -338,6 +426,26 @@ class Multilingual extends AbstractExternalModule
 			}
 		}
 		
+		// override
+		$instruments = $this->getProjectSetting('instruments');
+		if (!empty($instruments)) {
+			$instruments = json_decode($instruments);
+			$form_name = $data['page'];
+			$this_lang = $data['lang'];
+			$simple_settings = $instruments->$form_name->$this_lang;
+			if (!empty($simple_settings)) {
+				$general_settings = $simple_settings->survey_settings;
+				if (!empty($general_settings)) {
+					if (!empty($general_settings->title) || $general_settings->title == "")
+						$response['surveytext']['surveytitle'] = html_entity_decode($general_settings->title);
+					if (!empty($general_settings->instructions) || $general_settings->instructions == "")
+						$response['surveytext']['surveyinstructions'] = html_entity_decode($general_settings->instructions);
+					if (!empty($general_settings->acknowledgement) || $general_settings->acknowledgement == "")
+						$response['surveytext']['surveyacknowledgment'] = html_entity_decode($general_settings->acknowledgement);
+				}
+			}
+		}
+		
 		//update language field
 		$response['exist'] = $this->updateLangVar($data);
 		$response['table'] = $metaDataTableName;
@@ -353,24 +461,63 @@ class Multilingual extends AbstractExternalModule
 
 		$metaDataTableName = $this->getMetaDataTableName($data['project_id']);
 		
-		$query = "SELECT field_name FROM $metaDataTableName where project_id = " . $data['project_id'] . " ORDER BY field_order LIMIT 1";
+		$query = "SELECT field_name FROM $metaDataTableName where project_id = " . intval($data['project_id']) . " ORDER BY field_order LIMIT 1";
 		$result = mysqli_query($conn, $query);
 		$row = mysqli_fetch_array($result);
 		
 		return $row['field_name'];
 	}
 	
-	public function updateLangVar($data){
-		$exist = json_decode(\REDCap::getData($data['project_id'], 'json', $data['record_id']), true);
-		if(!empty($exist)){
-			$recordVar = $this->getRecordVar($data);
+	public function getSavedLang($data){
+		if($data['record_id'] != ''){
 			$langVar = $this->getProjectSetting('languages_variable', $data['project_id']);
-			
-			$t = array($recordVar => $data['record_id'], ($langVar != null ? $langVar : 'languages') => $data['lang_id']);
-			$json_data = json_encode(array($t));
-			$tmp = \REDCap::saveData($data['project_id'], 'json', $json_data, 'normal');
-			return $exist;
+			$tmp = json_decode(REDCap::getData($data['project_id'], 'json', array($data['record_id']), array($langVar)),true);
+			if(!empty($tmp)){
+				header('Content-Type: application/json');
+				echo json_encode($tmp[0][$langVar]);
+			}
+			else{
+				return null;
+			}
 		}
+		else{
+			return null;
+		}
+		
+	}
+	
+	public function updateLangVar($data){
+		if($data['record_id'] != ''){
+			$exist = json_decode(\REDCap::getData($data['project_id'], 'json', $data['record_id']), true);
+			if(!empty($exist)){
+				$recordVar = $this->getRecordVar($data);
+				$langVar = $this->getProjectSetting('languages_variable', $data['project_id']);
+				
+				$t = array($recordVar => $data['record_id'], ($langVar != null ? $langVar : 'languages') => $data['lang_id'], 'redcap_event_name' => $this->getEventName($data['event_id']));
+				$json_data = json_encode(array($t));
+				$tmp = \REDCap::saveData($data['project_id'], 'json', $json_data, 'normal');
+
+				return $tmp;
+			}
+		}
+	}
+	
+	public function getEventName($event_id){
+		global $conn;
+		
+		$query = "SELECT descrip, arm_id FROM redcap_events_metadata WHERE event_id = " . intval($event_id);
+		$result = mysqli_query($conn, $query);
+		$row = mysqli_fetch_array($result); 
+		
+		$event_name = strtolower(str_replace(" ", "_", $row['descrip']));
+		
+		$query = "SELECT arm_name FROM redcap_events_arms WHERE arm_id = " . intval($row['arm_id']);
+		$result = mysqli_query($conn, $query);
+		$row = mysqli_fetch_array($result); 
+		
+		$event_name .= '_' . strtolower(str_replace(" ", "_", $row['arm_name']));
+		
+		return $event_name;
 	}
 
 	//copied from php.net
@@ -417,8 +564,11 @@ class Multilingual extends AbstractExternalModule
 	
 	public function getLanguages($project_id){
 		$langVar = $this->languageVariable($project_id);
+		if(!$langVar){
+			$langVar = 'languages';
+		}
 		
-		$q = "SELECT element_enum FROM redcap_metadata WHERE project_id = " . $project_id . " AND field_name = '" . $langVar . "'";
+		$q = "SELECT element_enum FROM redcap_metadata WHERE project_id = " . intval($project_id) . " AND field_name = '" . $langVar . "'";
 		$query = db_query($q);
 		$row = db_fetch_assoc($query);
 			
@@ -433,7 +583,7 @@ class Multilingual extends AbstractExternalModule
 	
 	public function getData($project_id, $record){
 		$q = "SELECT record, event_id, field_name, `value` FROM redcap_data
-			WHERE project_id = " . $project_id . 
+			WHERE project_id = " . intval($project_id) . 
 			" AND record = '" . $record . "'";
 		$query = db_query($q);
 	
@@ -446,7 +596,7 @@ class Multilingual extends AbstractExternalModule
 	
 	public function getMetaData($project_id, $form = null){
 		$q = "SELECT * FROM redcap_metadata
-			WHERE project_id = " . $project_id 
+			WHERE project_id = " . intval($project_id) 
 			. ($form ? " AND form_name = '" . $form . "'" : "") .
 			" ORDER BY field_order";
 		$query = db_query($q);
@@ -476,7 +626,7 @@ class Multilingual extends AbstractExternalModule
 
 		//language
 		$query = "SELECT element_enum, element_type, element_validation_type FROM $metaDataTableName
-			WHERE project_id = " . $pid . "
+			WHERE project_id = " . intval($pid) . "
 			AND field_name LIKE '" . $langVar . "'";
 		$result = mysqli_query($conn, $query);
 		$row = mysqli_fetch_array($result);
@@ -492,7 +642,7 @@ class Multilingual extends AbstractExternalModule
 
 		//translations
 		$query = "SELECT field_name, element_type, misc, grid_name, element_validation_type, element_label FROM $metaDataTableName
-			WHERE project_id = " . $pid . " AND field_name NOT LIKE 'survey_text%' ORDER BY field_order";
+			WHERE project_id = " . intval($pid) . " AND field_name NOT LIKE 'survey_text%' ORDER BY field_order";
 		$result = mysqli_query($conn, $query);
 
 		while($row = mysqli_fetch_array($result)){
